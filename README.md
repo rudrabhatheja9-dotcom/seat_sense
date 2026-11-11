@@ -1,6 +1,6 @@
 # SeatSense: Library & Study Room Finder
 
-**Live demo:** _add your GitHub Pages link here_
+**Live demo:** https://rudrabhatheja9-dotcom.github.io/seat_sense/
 
 ## The problem
 Students walk to the library only to find every seat taken, or spend ages hunting for a spot in the right zone.
