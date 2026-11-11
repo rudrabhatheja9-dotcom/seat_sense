@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SeatSense: Find a free library seat before you walk there</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0f2a2e;--paper:#eef4f3;--card:#fff;--line:#cfdcda;--muted:#566f72;--free:#1f9d8a;--busy:#c5d1cf;--mine:#3b6de0;--mid:#d9a21b;--hi:#d4503f;--accent:#0f6f7a}
+@media (prefers-color-scheme:dark){:root{--ink:#e6f2f0;--paper:#0b1a1d;--card:#12282c;--line:#26444a;--muted:#93b0b3;--free:#3fd0b8;--busy:#2c4247;--mine:#7ea2ff;--mid:#f0bd3a;--hi:#ff7a69;--accent:#5fd3df}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+h1,h2,.big{font-family:"Sora",system-ui,sans-serif}
+.wrap{max-width:960px;margin:0 auto;padding:24px 16px 64px}
+header{display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px}
+h1{margin:0;font-size:1.7rem;letter-spacing:-.02em}
+.sub{margin:0;color:var(--muted)}
+.live{text-align:right}.big{font-size:3rem;font-weight:800;line-height:1}
+.lo{color:var(--free)}.md{color:var(--mid)}.hi{color:var(--hi)}
+.banner{margin:16px 0;padding:14px 18px;border-radius:12px;background:var(--mine);color:#fff;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center}
+@media (prefers-color-scheme:dark){.banner{color:#0b1a1d}}
+.banner[hidden]{display:none}
+.filters{display:flex;gap:8px;margin:16px 0;flex-wrap:wrap}
+button{font:inherit;border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:8px;padding:8px 14px;cursor:pointer}
+button:hover:not(:disabled){border-color:var(--accent)}
+button[aria-pressed=true]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+button.go{background:var(--accent);border-color:var(--accent);color:#fff}
+@media (prefers-color-scheme:dark){button.go{color:#0b1a1d}}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+.map{display:grid;gap:16px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+.zone{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;transition:opacity .25s}
+.zone.dim{opacity:.3}
+.zone h2{margin:0;font-size:1.1rem}.zsub{margin:0 0 12px;color:var(--muted);font-size:.9rem}
+.tables{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+.table{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:10px;border:1px dashed var(--line);border-radius:10px}
+.seat{aspect-ratio:1;padding:0;min-width:34px;font-weight:700;border-radius:8px;border:2px solid transparent}
+.seat.free{background:var(--free);color:#fff}
+@media (prefers-color-scheme:dark){.seat.free{color:#0b1a1d}}
+.seat.busy{background:repeating-linear-gradient(45deg,var(--busy),var(--busy) 4px,transparent 4px,transparent 8px);color:var(--muted);cursor:not-allowed}
+.seat.mine{background:var(--mine);color:#fff}
+.seat.sel{outline:3px solid var(--ink);outline-offset:2px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin:14px 0;color:var(--muted);font-size:.9rem}
+.legend i{display:inline-block;width:14px;height:14px;border-radius:4px;vertical-align:-2px;margin-right:6px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-top:16px}
+.card h2{margin:0 0 8px;font-size:1.1rem}
+.pick{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+select{font:inherit;padding:8px;border-radius:8px;border:1px solid var(--line);background:var(--card);color:var(--ink)}
+.demo{color:var(--muted);font-size:.9rem;display:block;margin-top:10px}
+.heat{list-style:none;margin:12px 0 0;padding:0;display:flex;gap:6px;align-items:flex-end;height:140px;overflow-x:auto}
+.heat li{flex:1;min-width:30px;height:100%;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:4px;font-size:.75rem;color:var(--muted)}
+.heat .b{width:100%;border-radius:6px 6px 0 0}
+.heat .lo{background:var(--free)}.heat .md{background:var(--mid)}.heat .hi{background:var(--hi)}
+.heat .now{outline:3px solid var(--ink);outline-offset:1px}
+#note{min-height:1.4em;margin:8px 0 0;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){.zone{transition:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div><h1>SeatSense</h1><p class="sub">Central Library, Floor 2</p></div>
+    <div class="live"><div class="big" id="occ">0%</div><div id="occLbl" class="sub">full right now</div></div>
+  </header>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <div class="filters" role="group" aria-label="Show zone">
+    <button data-zone="all" aria-pressed="true">All zones</button>
+    <button data-zone="quiet" aria-pressed="false">Quiet zone</button>
+    <button data-zone="group" aria-pressed="false">Group zone</button>
+  </div>
+
+  <div id="map" class="map"></div>
+  <div class="legend">
+    <span><i style="background:var(--free)"></i>Free</span>
+    <span><i style="background:repeating-linear-gradient(45deg,var(--busy),var(--busy) 3px,transparent 3px,transparent 6px)"></i>Taken</span>
+    <span><i style="background:var(--mine)"></i>Your seat</span>
+  </div>
+  <p id="note" role="status" aria-live="polite"></p>
+
+  <section class="card" id="panel"></section>
+
+  <section class="card">
+    <h2>Best time to visit</h2>
+    <p class="sub" id="best"></p>
+    <ul class="heat" id="heat" aria-label="Expected crowd by hour"></ul>
+  </section>
+</div>
+
+<script>
+const KEY = 'seatsense.v1';
+const HOURS = [8,9,10,11,12,13,14,15,16,17,18,19,20];
+const LEVEL = [28,42,58,68,84,90,76,64,70,82,60,38,24]; // expected % full, 8 AM to 8 PM (sample data)
+let seats = [], selected = null, mine = null, zone = 'all', demo = false, mins = 60;
+
+const $ = id => document.getElementById(id);
+const isMine = s => mine && mine.id === s.id;
+const hourName = h => (h % 12 || 12) + (h < 12 ? ' AM' : ' PM');
+const cls = v => v < 45 ? 'lo' : v < 75 ? 'md' : 'hi';
+
+function build() {
+  seats = [];
+  ['quiet', 'group'].forEach(z => {
+    for (let t = 1; t <= 4; t++) for (let i = 1; i <= 6; i++)
+      seats.push({ id: (z === 'quiet' ? 'Q' : 'G') + ((t - 1) * 6 + i), zone: z, table: t, busy: Math.random() < (z === 'quiet' ? 0.6 : 0.5) });
+  });
+}
+function save() { try { localStorage.setItem(KEY, JSON.stringify(mine)); } catch (e) {} }
+function load() {
+  try {
+    const m = JSON.parse(localStorage.getItem(KEY));
+    if (m && m.endsAt > Date.now() && seats.some(s => s.id === m.id)) { mine = m; seats.find(s => s.id === m.id).busy = false; }
+  } catch (e) {}
+}
+function occupancy() { return Math.round(seats.filter(s => s.busy || isMine(s)).length / seats.length * 100); }
+function fmt(ms) {
+  const t = Math.max(0, Math.ceil(ms / 1000)), h = Math.floor(t / 3600), m = Math.floor(t % 3600 / 60), s = t % 60;
+  return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0');
+}
+
+function seatBtn(s) {
+  const st = isMine(s) ? 'mine' : s.busy ? 'busy' : 'free';
+  const dim = zone !== 'all' && zone !== s.zone;
+  const label = 'Seat ' + s.id + ', ' + s.zone + ' zone, ' + (st === 'mine' ? 'your seat' : st === 'busy' ? 'taken' : 'free');
+  return `<button class="seat ${st}${selected === s.id ? ' sel' : ''}" data-id="${s.id}" aria-label="${label}" ${st !== 'free' || dim ? 'disabled' : ''}>${s.id.slice(1)}</button>`;
+}
+
+function render() {
+  const p = occupancy();
+  $('occ').textContent = p + '%'; $('occ').className = 'big ' + cls(p);
+  $('occLbl').textContent = (p < 40 ? 'Plenty of room' : p < 70 ? 'Getting busy' : 'Almost full') + ', full right now';
+
+  $('map').innerHTML = ['quiet', 'group'].map(z => {
+    const zs = seats.filter(s => s.zone === z), free = zs.filter(s => !s.busy && !isMine(s)).length;
+    return `<section class="zone ${zone !== 'all' && zone !== z ? 'dim' : ''}">
+      <h2>${z === 'quiet' ? 'Quiet zone' : 'Group zone'}</h2>
+      <p class="zsub">${free} free of ${zs.length}. ${z === 'quiet' ? 'Silence please.' : 'Talking allowed.'}</p>
+      <div class="tables">${[1, 2, 3, 4].map(t => `<div class="table">${zs.filter(s => s.table === t).map(seatBtn).join('')}</div>`).join('')}</div>
+    </section>`;
+  }).join('');
+
+  document.querySelectorAll('.filters button').forEach(b => b.setAttribute('aria-pressed', b.dataset.zone === zone));
+
+  const b = $('banner');
+  if (mine) {
+    b.hidden = false;
+    b.innerHTML = `<span>Seat <strong>${mine.id}</strong> is yours for <strong id="left">${fmt(mine.endsAt - Date.now())}</strong></span><button id="release">Release seat</button>`;
+  } else { b.hidden = true; b.innerHTML = ''; }
+
+  const s = seats.find(x => x.id === selected);
+  $('panel').innerHTML = s
+    ? `<h2>Seat ${s.id}</h2><p class="sub">${s.zone === 'quiet' ? 'Quiet' : 'Group'} zone, table ${s.table}.${mine ? ' Reserving this will release seat ' + mine.id + '.' : ''}</p>
+       <div class="pick"><label>Stay for <select id="mins">${[[30,'30 minutes'],[60,'1 hour'],[120,'2 hours']].map(o => `<option value="${o[0]}"${mins === o[0] ? ' selected' : ''}>${o[1]}</option>`).join('')}</select></label>
+       <button class="go" id="reserve">Reserve seat ${s.id}</button></div>
+       <label class="demo"><input type="checkbox" id="demo" ${demo ? 'checked' : ''}> Demo speed: 1 hour passes in 1 minute</label>`
+    : `<h2>Reserve a seat</h2><p class="sub">Tap a free seat on the map to reserve it.</p>
+       <label class="demo"><input type="checkbox" id="demo" ${demo ? 'checked' : ''}> Demo speed: 1 hour passes in 1 minute</label>`;
+}
+
+function renderHeat() {
+  const now = new Date().getHours();
+  $('heat').innerHTML = HOURS.map((h, i) => `<li title="${hourName(h)}: about ${LEVEL[i]}% full"><span class="b ${cls(LEVEL[i])}${h === now ? ' now' : ''}" style="height:${LEVEL[i]}%"></span>${h % 12 || 12}</li>`).join('');
+  const from = Math.max(now, 8);
+  if (now > 20) { $('best').textContent = 'The library is closed. It is usually quietest at 8 AM when it opens.'; return; }
+  let bi = HOURS.indexOf(from);
+  HOURS.forEach((h, i) => { if (h >= from && LEVEL[i] < LEVEL[bi]) bi = i; });
+  $('best').textContent = 'Quietest time left today: ' + hourName(HOURS[bi]) + ' (about ' + LEVEL[bi] + '% full). Sample data for this demo.';
+}
+
+$('map').addEventListener('click', e => {
+  const b = e.target.closest('.seat'); if (!b || b.disabled) return;
+  selected = b.dataset.id; render();
+});
+document.querySelector('.filters').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  zone = b.dataset.zone; selected = null; render();
+});
+$('panel').addEventListener('click', e => {
+  if (e.target.id !== 'reserve') return;
+  const ms = Number($('mins').value) * 60000 / (demo ? 60 : 1);
+  mine = { id: selected, endsAt: Date.now() + ms };
+  $('note').textContent = 'Seat ' + selected + ' reserved.';
+  selected = null; save(); render();
+});
+$('panel').addEventListener('change', e => { if (e.target.id === 'demo') demo = e.target.checked; if (e.target.id === 'mins') mins = Number(e.target.value); });
+$('banner').addEventListener('click', e => {
+  if (e.target.id !== 'release') return;
+  $('note').textContent = 'Seat ' + mine.id + ' released.';
+  mine = null; save(); render();
+});
+
+// simulate other students arriving and leaving
+setInterval(() => {
+  for (let k = 0; k < 2; k++) {
+    const s = seats[Math.floor(Math.random() * seats.length)], p = occupancy();
+    if (isMine(s)) continue;
+    if (!s.busy && p < 90) { s.busy = true; if (selected === s.id) { selected = null; $('note').textContent = 'Seat ' + s.id + ' was just taken. Pick another.'; } }
+    else if (s.busy && p > 25) s.busy = false;
+  }
+  render();
+}, 4000);
+
+// countdown
+setInterval(() => {
+  if (!mine) return;
+  const left = mine.endsAt - Date.now();
+  if (left <= 0) { $('note').textContent = 'Your reservation for ' + mine.id + ' has ended. The seat is free again.'; mine = null; save(); render(); }
+  else if ($('left')) $('left').textContent = fmt(left);
+}, 1000);
+
+build(); load(); render(); renderHeat();
+</script>
+</body>
+</html>
